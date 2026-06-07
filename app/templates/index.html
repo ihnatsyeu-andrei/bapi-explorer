@@ -1,0 +1,360 @@
+{% extends "base.html" %}
+
+{% block title %}BAPI Explorer — Search{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-10">
+
+    <!-- Hero search -->
+    <div class="card shadow-sm mb-4">
+      <div class="card-body p-4">
+        <h1 class="h4 mb-1 fw-bold text-dark">
+          <i class="bi bi-search me-2 text-primary"></i>Search Function Modules
+        </h1>
+        <p class="text-muted small mb-3">
+          Use SAP wildcard patterns: <code>BAPI_SALES*</code>, <code>*MATERIAL*</code>, <code>RFC_READ+TABLE</code>
+        </p>
+
+        <form id="search-form" class="d-flex gap-2" autocomplete="off">
+          <div class="flex-grow-1 position-relative">
+            <div class="input-group">
+              <span class="input-group-text bg-body">
+                <i class="bi bi-search text-muted"></i>
+              </span>
+              <input id="search-input"
+                     type="text"
+                     class="form-control form-control-lg border-start-0"
+                     placeholder="e.g. BAPI_SALESORDER* or *MATERIAL*"
+                     value=""
+                     aria-label="Function module search pattern" />
+            </div>
+            <!-- Recent searches dropdown -->
+            <div id="recent-dropdown"
+                 class="position-absolute bg-body border rounded shadow-sm d-none"
+                 style="top:100%;left:0;right:0;z-index:1050;max-height:280px;overflow-y:auto;margin-top:2px">
+            </div>
+          </div>
+          <select id="max-results" class="form-select" style="max-width:120px">
+            <option value="50">50</option>
+            <option value="100" selected>100</option>
+            <option value="200">200</option>
+            <option value="500">500</option>
+          </select>
+          <button type="submit" class="btn btn-primary btn-lg px-4">
+            <i class="bi bi-search me-1"></i>Search
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="search-results-panel" class="d-none">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+          <span id="results-count" class="text-muted small fw-semibold"></span>
+          <select id="group-filter" class="form-select form-select-sm d-none" style="max-width:220px" title="Filter by function group">
+            <option value="">All groups</option>
+          </select>
+        </div>
+        <input id="filter-input"
+               type="text"
+               class="form-control form-control-sm w-auto"
+               placeholder="Filter results…" />
+      </div>
+
+      <!-- Spinner -->
+      <div id="search-spinner" class="text-center py-5 d-none">
+        <div class="spinner-border text-primary" role="status"></div>
+        <div class="mt-2 text-muted small">Querying SAP…</div>
+      </div>
+
+      <!-- Error -->
+      <div id="search-error" class="alert alert-danger d-none" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        <span id="search-error-text"></span>
+      </div>
+
+      <!-- Table -->
+      <div class="card shadow-sm">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0" id="results-table">
+            <thead class="table-dark">
+              <tr>
+                <th>Function Module</th>
+                <th>Group</th>
+                <th>Description</th>
+                <th class="text-center" style="width:80px">Open</th>
+              </tr>
+            </thead>
+            <tbody id="results-body">
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="no-results" class="text-center py-5 text-muted d-none">
+        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+        No function modules found.
+      </div>
+
+      <div id="pagination-bar" class="mt-3"></div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const form       = document.getElementById('search-form');
+const input      = document.getElementById('search-input');
+const maxSel     = document.getElementById('max-results');
+const panel      = document.getElementById('search-results-panel');
+const spinner    = document.getElementById('search-spinner');
+const errBox     = document.getElementById('search-error');
+const errText    = document.getElementById('search-error-text');
+const tbody      = document.getElementById('results-body');
+const countEl    = document.getElementById('results-count');
+const filterEl   = document.getElementById('filter-input');
+const groupSel   = document.getElementById('group-filter');
+const noResults  = document.getElementById('no-results');
+const table      = document.getElementById('results-table');
+const recentDrop = document.getElementById('recent-dropdown');
+
+const LS_RECENT_KEY = 'bapi-recent-searches';
+let allRows = [];
+let currentTerm = '';
+const PAGE_SIZE = 50;
+let currentPage = 1;
+let lastFiltered = [];
+
+// ── Recent searches ───────────────────────────────────────────────────────
+function loadRecent() {
+  try { return JSON.parse(localStorage.getItem(LS_RECENT_KEY) || '[]'); }
+  catch { return []; }
+}
+function saveRecent(q) {
+  let list = loadRecent().filter(s => s !== q);
+  list.unshift(q);
+  list = list.slice(0, 10);
+  localStorage.setItem(LS_RECENT_KEY, JSON.stringify(list));
+}
+function renderRecentDropdown() {
+  const list = loadRecent();
+  if (!list.length) { recentDrop.classList.add('d-none'); return; }
+  recentDrop.innerHTML =
+    `<div class="px-2 pt-2 pb-1 text-muted" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.05em">
+       Recent searches
+       <button id="btn-clear-recent" class="btn btn-link btn-sm p-0 ms-2 text-muted" style="font-size:.7rem">Clear</button>
+     </div>`
+    + list.map(s =>
+        `<div class="recent-search-item" data-q="${escHtml(s)}">
+           <i class="bi bi-clock-history text-muted" style="font-size:.75rem"></i>${escHtml(s)}
+         </div>`
+      ).join('');
+  recentDrop.classList.remove('d-none');
+}
+
+input.addEventListener('focus', () => { if (loadRecent().length) renderRecentDropdown(); });
+input.addEventListener('blur', () => setTimeout(() => recentDrop.classList.add('d-none'), 150));
+input.addEventListener('input', () => { if (!input.value.trim()) renderRecentDropdown(); else recentDrop.classList.add('d-none'); });
+
+recentDrop.addEventListener('mousedown', (e) => {
+  const item = e.target.closest('.recent-search-item');
+  if (item) { input.value = item.dataset.q; recentDrop.classList.add('d-none'); form.requestSubmit(); return; }
+  if (e.target.closest('#btn-clear-recent')) {
+    localStorage.removeItem(LS_RECENT_KEY);
+    recentDrop.classList.add('d-none');
+  }
+});
+
+// ── Search form ───────────────────────────────────────────────────────────
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const q = input.value.trim();
+  if (!q) return;
+  saveRecent(q);
+  recentDrop.classList.add('d-none');
+  await doSearch(q, parseInt(maxSel.value));
+});
+
+// ── Pagination ────────────────────────────────────────────────────────────
+function renderPage(filtered) {
+  const total = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (currentPage > totalPages) currentPage = totalPages;
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const end = start + PAGE_SIZE;
+
+  allRows.forEach(({ tr }) => tr.classList.add('d-none'));
+  filtered.slice(start, end).forEach(({ tr }) => tr.classList.remove('d-none'));
+
+  if (total === 0) {
+    countEl.textContent = '0 results';
+  } else if (total <= PAGE_SIZE) {
+    countEl.textContent = `${total} result${total !== 1 ? 's' : ''}`;
+  } else {
+    countEl.textContent = `Showing ${start + 1}–${Math.min(end, total)} of ${total} result${total !== 1 ? 's' : ''}`;
+  }
+  noResults.classList.toggle('d-none', total > 0);
+  table.classList.toggle('d-none', total === 0);
+
+  renderPagination(total, totalPages);
+}
+
+function renderPagination(total, totalPages) {
+  const bar = document.getElementById('pagination-bar');
+  if (totalPages <= 1) { bar.innerHTML = ''; return; }
+
+  const pages = [];
+  for (let i = 1; i <= totalPages; i++) {
+    if (i === 1 || i === totalPages || Math.abs(i - currentPage) <= 2) {
+      pages.push(i);
+    } else if (pages[pages.length - 1] !== '…') {
+      pages.push('…');
+    }
+  }
+
+  bar.innerHTML = `<nav aria-label="Search results pages">
+    <ul class="pagination pagination-sm justify-content-center mb-0">
+      <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+        <button class="page-link" data-page="${currentPage - 1}" aria-label="Previous">&#8249;</button>
+      </li>
+      ${pages.map(p => p === '…'
+        ? `<li class="page-item disabled"><span class="page-link">…</span></li>`
+        : `<li class="page-item ${p === currentPage ? 'active' : ''}">
+             <button class="page-link" data-page="${p}">${p}</button>
+           </li>`
+      ).join('')}
+      <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+        <button class="page-link" data-page="${currentPage + 1}" aria-label="Next">&#8250;</button>
+      </li>
+    </ul>
+  </nav>`;
+}
+
+document.getElementById('pagination-bar').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-page]');
+  if (!btn) return;
+  const page = parseInt(btn.dataset.page);
+  const totalPages = Math.max(1, Math.ceil(lastFiltered.length / PAGE_SIZE));
+  if (isNaN(page) || page < 1 || page > totalPages) return;
+  currentPage = page;
+  renderPage(lastFiltered);
+  document.getElementById('results-table').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+// ── Filters ───────────────────────────────────────────────────────────────
+function applyFilters() {
+  const term  = filterEl.value.toLowerCase();
+  const group = groupSel.value.toLowerCase();
+  lastFiltered = allRows.filter(({ name, grp, desc }) =>
+       (!term  || name.includes(term)  || grp.includes(term)  || desc.includes(term))
+    && (!group || grp === group)
+  );
+  currentPage = 1;
+  renderPage(lastFiltered);
+}
+
+filterEl.addEventListener('input', applyFilters);
+groupSel.addEventListener('change', applyFilters);
+
+// ── Fetch ─────────────────────────────────────────────────────────────────
+async function doSearch(q, max) {
+  currentTerm = q;
+  panel.classList.remove('d-none');
+  spinner.classList.remove('d-none');
+  errBox.classList.add('d-none');
+  tbody.innerHTML = '';
+  allRows = [];
+  lastFiltered = [];
+  currentPage = 1;
+  filterEl.value = '';
+  groupSel.innerHTML = '<option value="">All groups</option>';
+  groupSel.classList.add('d-none');
+  noResults.classList.add('d-none');
+  table.classList.remove('d-none');
+  countEl.textContent = '';
+  document.getElementById('pagination-bar').innerHTML = '';
+
+  try {
+    const res = await fetch(`/api/bapi/search?q=${encodeURIComponent(q)}&max=${max}`);
+    spinner.classList.add('d-none');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      showError(err.detail || res.statusText);
+      return;
+    }
+    const data = await res.json();
+    renderResults(data.items || []);
+  } catch (err) {
+    spinner.classList.add('d-none');
+    showError(err.message);
+  }
+}
+
+// ── Render ────────────────────────────────────────────────────────────────
+function renderResults(items) {
+  if (!items.length) {
+    noResults.classList.remove('d-none');
+    table.classList.add('d-none');
+    countEl.textContent = '0 results';
+    return;
+  }
+
+  // Populate group filter
+  const groups = [...new Set(items.map(i => i.group || '').filter(Boolean))].sort();
+  if (groups.length > 1) {
+    groups.forEach(g => {
+      const opt = document.createElement('option');
+      opt.value = g.toLowerCase();
+      opt.textContent = g;
+      groupSel.appendChild(opt);
+    });
+    groupSel.classList.remove('d-none');
+  }
+
+  items.forEach(item => {
+    const tr = document.createElement('tr');
+    const nameLower = item.name.toLowerCase();
+    const grpLower  = (item.group || '').toLowerCase();
+    const descLower = (item.description || '').toLowerCase();
+    tr.innerHTML = `
+      <td class="fw-semibold font-monospace">
+        <a href="/bapi/${encodeURIComponent(item.name)}" class="text-decoration-none link-primary">
+          ${highlight(escHtml(item.name), currentTerm)}
+        </a>
+      </td>
+      <td class="text-muted small">${escHtml(item.group || '')}</td>
+      <td>${highlight(escHtml(item.description || ''), currentTerm)}</td>
+      <td class="text-center">
+        <a href="/bapi/${encodeURIComponent(item.name)}"
+           class="btn btn-sm btn-outline-primary" title="Open BAPI">
+          <i class="bi bi-box-arrow-up-right"></i>
+        </a>
+      </td>`;
+    tbody.appendChild(tr);
+    allRows.push({ tr, name: nameLower, grp: grpLower, desc: descLower });
+  });
+
+  lastFiltered = [...allRows];
+  renderPage(lastFiltered);
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function highlight(html, term) {
+  if (!term || term.includes('*') || term.includes('+')) return html;
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return html.replace(new RegExp(`(${escaped})`, 'gi'), '<mark class="search-hl">$1</mark>');
+}
+function showError(msg) {
+  errText.textContent = msg;
+  errBox.classList.remove('d-none');
+  table.classList.add('d-none');
+}
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+{% endblock %}

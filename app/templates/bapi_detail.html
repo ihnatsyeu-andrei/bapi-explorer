@@ -1,0 +1,1310 @@
+{% extends "base.html" %}
+
+{% block title %}{{ bapi_name }} — BAPI Explorer{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-11">
+
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Search</a></li>
+        <li class="breadcrumb-item active font-monospace fw-semibold">{{ bapi_name }}</li>
+      </ol>
+    </nav>
+
+    <!-- Header card -->
+    <div class="card shadow-sm mb-4">
+      <div class="card-body p-4">
+        <div class="d-flex align-items-start justify-content-between flex-wrap gap-2">
+          <div>
+            <h1 class="h4 mb-1 font-monospace fw-bold text-dark">{{ bapi_name }}</h1>
+            <p id="bapi-description" class="text-muted mb-0 small">Loading…</p>
+          </div>
+          <div class="d-flex gap-2">
+            <button id="btn-refresh" class="btn btn-outline-secondary btn-sm" title="Reload structure">
+              <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab navigation -->
+    <ul class="nav nav-tabs mb-4" id="detail-tabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="tab-structure" data-bs-toggle="tab"
+                data-bs-target="#pane-structure" type="button" role="tab">
+          <i class="bi bi-list-nested me-1"></i>Structure
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-run" data-bs-toggle="tab"
+                data-bs-target="#pane-run" type="button" role="tab">
+          <i class="bi bi-play-fill me-1"></i>Run
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-result" data-bs-toggle="tab"
+                data-bs-target="#pane-result" type="button" role="tab">
+          <i class="bi bi-braces me-1"></i>Result
+          <span id="result-badge" class="badge ms-1 d-none">!</span>
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-history" data-bs-toggle="tab"
+                data-bs-target="#pane-history" type="button" role="tab">
+          <i class="bi bi-clock-history me-1"></i>History
+          <span id="history-badge" class="badge bg-secondary ms-1 d-none">0</span>
+        </button>
+      </li>
+    </ul>
+
+    <div class="tab-content">
+
+      <!-- ───────────────────── Structure tab ───────────────────────── -->
+      <div class="tab-pane fade show active" id="pane-structure" role="tabpanel">
+        <div id="structure-spinner" class="text-center py-5">
+          <div class="spinner-border text-primary" role="status"></div>
+          <div class="mt-2 text-muted small">Loading interface…</div>
+        </div>
+        <div id="structure-error" class="alert alert-danger d-none" role="alert">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>
+          <span id="structure-error-text"></span>
+        </div>
+
+        <!-- Filter bar — shown after structure loads -->
+        <div id="structure-filter-bar" class="mb-3 d-none">
+          <div class="input-group input-group-sm" style="max-width:420px">
+            <span class="input-group-text bg-body"><i class="bi bi-funnel text-muted"></i></span>
+            <input type="text" id="structure-filter-input" class="form-control"
+                   placeholder="Filter parameters by name or description…" autocomplete="off">
+            <button class="btn btn-outline-secondary" id="btn-clear-structure-filter" type="button">
+              <i class="bi bi-x"></i>
+            </button>
+            <span class="input-group-text text-muted small" id="structure-filter-count"></span>
+          </div>
+        </div>
+
+        <div id="structure-content" class="d-none">
+          <!-- Import -->
+          <div id="section-import" class="mb-4 d-none">
+            <h6 class="text-uppercase text-muted fw-semibold small mb-2">
+              <i class="bi bi-box-arrow-in-right me-1 text-success"></i>Import Parameters
+            </h6>
+            <div class="card shadow-sm">
+              <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                  <thead class="table-light"><tr>
+                    <th>Parameter</th><th>Type</th>
+                    <th class="text-center">Optional</th>
+                    <th>Default</th><th>Description</th>
+                  </tr></thead>
+                  <tbody id="tbody-import"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <!-- Export -->
+          <div id="section-export" class="mb-4 d-none">
+            <h6 class="text-uppercase text-muted fw-semibold small mb-2">
+              <i class="bi bi-box-arrow-right me-1 text-primary"></i>Export Parameters
+            </h6>
+            <div class="card shadow-sm">
+              <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                  <thead class="table-light"><tr>
+                    <th>Parameter</th><th>Type</th>
+                    <th>Description</th>
+                  </tr></thead>
+                  <tbody id="tbody-export"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <!-- Changing -->
+          <div id="section-changing" class="mb-4 d-none">
+            <h6 class="text-uppercase text-muted fw-semibold small mb-2">
+              <i class="bi bi-arrow-left-right me-1 text-warning"></i>Changing Parameters
+            </h6>
+            <div class="card shadow-sm">
+              <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                  <thead class="table-light"><tr>
+                    <th>Parameter</th><th>Type</th>
+                    <th class="text-center">Optional</th>
+                    <th>Description</th>
+                  </tr></thead>
+                  <tbody id="tbody-changing"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <!-- Tables -->
+          <div id="section-tables" class="mb-4 d-none">
+            <h6 class="text-uppercase text-muted fw-semibold small mb-2">
+              <i class="bi bi-table me-1 text-info"></i>Table Parameters
+            </h6>
+            <div class="card shadow-sm">
+              <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                  <thead class="table-light"><tr>
+                    <th>Parameter</th><th>Type</th>
+                    <th>Description</th>
+                  </tr></thead>
+                  <tbody id="tbody-tables"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <!-- Exceptions -->
+          <div id="section-exceptions" class="mb-4 d-none">
+            <h6 class="text-uppercase text-muted fw-semibold small mb-2">
+              <i class="bi bi-exclamation-diamond me-1 text-danger"></i>Exceptions
+            </h6>
+            <div class="card shadow-sm">
+              <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                  <thead class="table-light"><tr>
+                    <th>Exception</th><th>Description</th>
+                  </tr></thead>
+                  <tbody id="tbody-exceptions"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ───────────────────── Run tab ─────────────────────────────── -->
+      <div class="tab-pane fade" id="pane-run" role="tabpanel">
+        <div class="card shadow-sm">
+          <div class="card-body p-4">
+
+            <div class="mb-3 d-flex justify-content-between align-items-center">
+              <span class="text-muted small">
+                Import and Changing parameters are shown as text inputs.
+                Table parameters accept JSON arrays, e.g. <code>[{"FIELDNAME":"BUKRS"}]</code>.
+              </span>
+              <button id="btn-clear-params" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-x-circle me-1"></i>Clear
+              </button>
+            </div>
+
+            <form id="run-form">
+              <div id="run-fields">
+                <!-- Populated by JS after structure loads -->
+                <div class="text-center py-4 text-muted small" id="run-fields-placeholder">
+                  Load the <a href="#" id="link-to-structure">Structure tab</a> first to auto-generate input fields.
+                </div>
+              </div>
+
+              <!-- Raw JSON override -->
+              <div class="mt-3">
+                <label class="form-label fw-semibold small text-muted text-uppercase" for="raw-json-input">
+                  Raw JSON Parameters (overrides fields above)
+                </label>
+                <textarea id="raw-json-input" class="form-control font-monospace"
+                          rows="6"
+                          placeholder='{ "COMPANYCODE": "1000" }'></textarea>
+                <div class="invalid-feedback" id="json-error"></div>
+              </div>
+
+              <div class="mt-4 d-flex gap-2">
+                <button type="submit" class="btn btn-success px-4" id="btn-run">
+                  <i class="bi bi-play-fill me-1"></i>Execute BAPI
+                </button>
+                <div id="run-spinner" class="d-none d-flex align-items-center ms-2">
+                  <div class="spinner-border spinner-border-sm text-success me-2" role="status"></div>
+                  <span class="text-muted small">Running…</span>
+                </div>
+              </div>
+            </form>
+
+            <div id="run-error" class="alert alert-danger mt-3 d-none" role="alert">
+              <i class="bi bi-exclamation-triangle-fill me-2"></i>
+              <span id="run-error-text"></span>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- ───────────────────── Result tab ──────────────────────────── -->
+      <div class="tab-pane fade" id="pane-result" role="tabpanel">
+        <div id="result-empty" class="text-center py-5 text-muted">
+          <i class="bi bi-play-circle fs-1 d-block mb-2"></i>
+          Execute the BAPI from the Run tab to see results here.
+        </div>
+        <div id="result-content" class="d-none">
+
+          <!-- Status banner -->
+          <div id="result-status" class="alert mb-3" role="alert"></div>
+
+          <!-- Return messages -->
+          <div id="result-messages-section" class="mb-4 d-none">
+            <h6 class="text-uppercase text-muted fw-semibold small mb-2">
+              <i class="bi bi-chat-left-text me-1"></i>Return Messages
+            </h6>
+            <div id="result-messages"></div>
+          </div>
+
+          <!-- Raw output -->
+          <div id="raw-output-section">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <h6 class="text-uppercase text-muted fw-semibold small mb-0">
+                <i class="bi bi-braces me-1"></i>Raw Output
+              </h6>
+              <button id="btn-copy-result" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-clipboard me-1"></i>Copy JSON
+              </button>
+            </div>
+            <pre id="result-json" class="bg-dark text-light rounded p-3"
+                 style="max-height:600px;overflow:auto;font-size:.8rem"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- ───────────────────── History tab ──────────────────────────── -->
+      <div class="tab-pane fade" id="pane-history" role="tabpanel">
+        <div class="card shadow-sm">
+          <div class="card-body p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <span class="text-muted small">
+                Recent executions for <code class="text-dark">{{ bapi_name }}</code>
+              </span>
+              <button id="btn-clear-history" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash me-1"></i>Clear all
+              </button>
+            </div>
+            <div id="history-list"></div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- tab-content -->
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const BAPI_NAME = {{ bapi_name | tojson }};
+let structureData = null;
+let lastResultData = null;  // Feature 5: holds last run result for CSV export
+
+// ── Load structure on page load ──────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => loadStructure());
+
+document.getElementById('btn-refresh').addEventListener('click', loadStructure);
+document.getElementById('link-to-structure').addEventListener('click', (e) => {
+  e.preventDefault();
+  document.getElementById('tab-structure').click();
+});
+
+// ── Structure ─────────────────────────────────────────────────────────────
+async function loadStructure() {
+  setStructureLoading(true);
+  try {
+    const res = await fetch(`/api/bapi/${encodeURIComponent(BAPI_NAME)}/structure`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      showStructureError(err.detail || res.statusText);
+      return;
+    }
+    const data = await res.json();
+    structureData = data;
+    window._structureCache = data;  // expose for AI context
+    renderStructure(data);
+    buildRunForm(data);
+    restoreInputsFromStorage();  // Feature 1
+  } catch (err) {
+    showStructureError(err.message);
+  } finally {
+    setStructureLoading(false);
+  }
+}
+
+function setStructureLoading(on) {
+  document.getElementById('structure-spinner').classList.toggle('d-none', !on);
+  if (on) {
+    document.getElementById('structure-content').classList.add('d-none');
+    document.getElementById('structure-error').classList.add('d-none');
+    document.getElementById('structure-filter-bar').classList.add('d-none');
+    document.getElementById('structure-filter-input').value = '';
+    document.getElementById('structure-filter-count').textContent = '';
+  }
+}
+
+function showStructureError(msg) {
+  document.getElementById('structure-error-text').textContent = msg;
+  document.getElementById('structure-error').classList.remove('d-none');
+}
+
+function renderStructure(data) {
+  const params = data.parameters || [];
+
+  if (!params.length) {
+    document.getElementById('structure-content').classList.remove('d-none');
+    document.getElementById('structure-content').innerHTML =
+      '<div class="text-center py-5 text-muted">'
+      + '<i class="bi bi-inbox fs-1 d-block mb-2"></i>'
+      + '<p class="mb-0">This function module has no parameters defined.</p>'
+      + '</div>';
+    document.getElementById('bapi-description').textContent = data.description || '';
+    document.getElementById('run-fields-placeholder').textContent =
+      'This function module has no import or changing parameters.';
+    return;
+  }
+
+  const grouped = { I: [], E: [], C: [], T: [], X: [] };
+  params.forEach(p => (grouped[p.direction] = grouped[p.direction] || []).push(p));
+
+  // Populate direction sections
+  fillSection('import',     'tbody-import',     grouped.I || [], ['name','type_name','optional','default_value','description']);
+  fillSection('export',     'tbody-export',     grouped.E || [], ['name','type_name','description']);
+  fillSection('changing',   'tbody-changing',   grouped.C || [], ['name','type_name','optional','description']);
+  fillSection('tables',     'tbody-tables',     grouped.T || [], ['name','type_name','description']);
+  fillSection('exceptions', 'tbody-exceptions', grouped.X || [], ['name','description']);
+
+  document.getElementById('structure-content').classList.remove('d-none');
+  document.getElementById('structure-filter-bar').classList.remove('d-none');
+
+  // Show description and parameter summary
+  const total = params.length;
+  const summary = `${(grouped.I||[]).length} import, `
+    + `${(grouped.E||[]).length} export, `
+    + `${(grouped.C||[]).length} changing, `
+    + `${(grouped.T||[]).length} table${(grouped.T||[]).length !== 1 ? 's' : ''}, `
+    + `${(grouped.X||[]).length} exception${(grouped.X||[]).length !== 1 ? 's' : ''}`;
+  const descEl = document.getElementById('bapi-description');
+  if (data.description) {
+    descEl.textContent = data.description;
+    descEl.insertAdjacentHTML('afterend',
+      `<p class="text-muted mb-0 small mt-1">${total} parameter${total !== 1 ? 's' : ''} — ${summary}</p>`);
+  } else {
+    descEl.textContent = `${total} parameter${total !== 1 ? 's' : ''} — ${summary}`;
+  }
+}
+
+function fillSection(sectionId, tbodyId, rows, cols) {
+  const section = document.getElementById('section-' + sectionId);
+  const tbody = document.getElementById(tbodyId);
+  if (!rows.length) { section.classList.add('d-none'); return; }
+  section.classList.remove('d-none');
+  tbody.innerHTML = '';
+  rows.forEach(p => {
+    const tr = document.createElement('tr');
+    tr.dataset.paramName = (p.name || '').toLowerCase();
+    tr.dataset.paramDesc = (p.description || '').toLowerCase();
+    tr.innerHTML = cols.map(col => {
+      if (col === 'optional') {
+        return `<td class="text-center">${p.optional ? '<i class="bi bi-check-circle-fill text-muted"></i>' : ''}</td>`;
+      }
+      const val = p[col] != null ? String(p[col]) : '';
+      if (col === 'name') return `<td class="fw-semibold font-monospace text-body param-name-cell" data-copy-name="${escAttr(val)}">${escHtml(val)}<i class="bi bi-clipboard param-copy-icon"></i></td>`;
+      if (col === 'type_name') {
+        const val = p[col] != null ? String(p[col]) : '';
+        if (!val) return `<td></td>`;
+        return `<td><button class="badge bg-secondary-subtle text-secondary border font-monospace btn-type-expand" data-type-name="${escAttr(val)}" title="Click to see fields of ${escAttr(val)}" style="cursor:pointer">${escHtml(val)} <i class="bi bi-chevron-right" style="font-size:.6rem;vertical-align:middle"></i></button></td>`;
+      }
+      return `<td class="text-muted small">${escHtml(val)}</td>`;
+    }).join('');
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Run form ──────────────────────────────────────────────────────────────
+function buildRunForm(data) {
+  const container = document.getElementById('run-fields');
+  const placeholder = document.getElementById('run-fields-placeholder');
+  const allParams = data.parameters || [];
+  const scalarParams = allParams.filter(p => p.direction === 'I' || p.direction === 'C');
+  const tableParams  = allParams.filter(p => p.direction === 'T');
+
+  if (!scalarParams.length && !tableParams.length) {
+    placeholder.textContent = 'This function module has no import, changing or table parameters.';
+    return;
+  }
+  placeholder.classList.add('d-none');
+
+  const scalarHtml = scalarParams.map(p => `
+    <div class="mb-3">
+      <label class="form-label fw-semibold font-monospace small mb-1" for="param-${escAttr(p.name)}">
+        ${escHtml(p.name)}
+        ${p.optional ? '' : '<span class="text-danger ms-1" title="Required">*</span>'}
+        <span class="badge bg-light text-secondary border ms-1">${escHtml(p.type_name || '')}</span>
+        ${p.direction === 'C' ? '<span class="badge bg-warning text-dark ms-1">CHANGING</span>' : ''}
+      </label>
+      ${p.description ? `<div class="text-muted small mb-1">${escHtml(p.description)}</div>` : ''}
+      <input id="param-${escAttr(p.name)}"
+             type="text"
+             class="form-control font-monospace"
+             data-param-name="${escAttr(p.name)}"
+             data-param-kind="scalar"
+             data-exid="${escAttr(p.exid || '')}"
+             placeholder="${escAttr(p.default_value || p.type_name || '')}"
+             autocomplete="off" />
+      ${p.exid === 'u' && p.type_name ? `
+      <div class="mt-1 d-flex gap-2 flex-wrap align-items-center">
+        <button type="button" class="btn btn-outline-secondary btn-sm btn-skeleton"
+                data-type-name="${escAttr(p.type_name)}"
+                data-target-id="param-${escAttr(p.name)}"
+                data-skeleton-mode="scalar">
+          <i class="bi bi-magic me-1"></i>Fill skeleton
+        </button>
+        <button type="button" class="btn btn-link btn-sm p-0 small text-muted btn-run-type-expand" data-type-name="${escAttr(p.type_name)}">
+          <i class="bi bi-info-circle me-1"></i>Show <code class="text-muted">${escHtml(p.type_name)}</code> fields
+        </button>
+        <div class="run-type-fields-container d-none mt-1 w-100"></div>
+      </div>` : ''}
+    </div>`).join('');
+
+  const tableHtml = tableParams.length ? `
+    <hr class="my-3">
+    <h6 class="text-uppercase text-muted fw-semibold small mb-3">
+      <i class="bi bi-table me-1 text-info"></i>Table Parameters
+    </h6>
+    ${tableParams.map(p => `
+    <div class="mb-3">
+      <label class="form-label fw-semibold font-monospace small mb-1" for="param-${escAttr(p.name)}">
+        ${escHtml(p.name)}
+        <span class="badge bg-info text-dark ms-1">TABLE</span>
+        <span class="badge bg-light text-secondary border ms-1">${escHtml(p.type_name || '')}</span>
+      </label>
+      ${p.description ? `<div class="text-muted small mb-1">${escHtml(p.description)}</div>` : ''}
+      <textarea id="param-${escAttr(p.name)}"
+                class="form-control font-monospace"
+                rows="3"
+                data-param-name="${escAttr(p.name)}"
+                data-param-kind="table"
+                placeholder='[{"FIELDNAME": "..."}, ...]'></textarea>
+      <div class="invalid-feedback" id="json-error-${escAttr(p.name)}">Invalid JSON array</div>
+      ${p.type_name ? `
+      <div class="mt-1 d-flex gap-2 flex-wrap align-items-center">
+        <button type="button" class="btn btn-outline-secondary btn-sm btn-skeleton"
+                data-type-name="${escAttr(p.type_name)}"
+                data-target-id="param-${escAttr(p.name)}"
+                data-skeleton-mode="table">
+          <i class="bi bi-magic me-1"></i>Fill skeleton
+        </button>
+        <button type="button" class="btn btn-link btn-sm p-0 small text-muted btn-run-type-expand" data-type-name="${escAttr(p.type_name)}">
+          <i class="bi bi-info-circle me-1"></i>Show <code class="text-muted">${escHtml(p.type_name)}</code> row fields
+        </button>
+        <div class="run-type-fields-container d-none mt-1 w-100"></div>
+      </div>` : ''}
+    </div>`).join('')}` : '';
+
+  container.innerHTML = scalarHtml + tableHtml;
+}
+
+document.getElementById('btn-clear-params').addEventListener('click', () => {
+  document.querySelectorAll('input[data-param-name], textarea[data-param-name]').forEach(el => el.value = '');
+  document.getElementById('raw-json-input').value = '';
+  try { localStorage.removeItem(LS_INPUTS_KEY); } catch (_) {}  // Feature 1
+});
+
+// ── Execute BAPI ──────────────────────────────────────────────────────────
+function coerceByExid(val, exid) {
+  if (!val) return val;
+  if (['I', 'b', 's', '8'].includes(exid)) { const n = parseInt(val, 10); return isNaN(n) ? val : n; }
+  if (exid === 'F') { const n = parseFloat(val); return isNaN(n) ? val : n; }
+  return val;
+}
+document.getElementById('run-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  await executeBapi();
+});
+
+async function executeBapi() {
+  const rawJson = document.getElementById('raw-json-input').value.trim();
+  const jsonInput = document.getElementById('raw-json-input');
+  jsonInput.classList.remove('is-invalid');
+
+  let params = {};
+
+  if (rawJson) {
+    try {
+      params = JSON.parse(rawJson);
+    } catch {
+      jsonInput.classList.add('is-invalid');
+      document.getElementById('json-error').textContent = 'Invalid JSON';
+      return;
+    }
+  } else {
+    // Collect from generated fields
+    let tableError = false;
+    document.querySelectorAll('input[data-param-name], textarea[data-param-name]').forEach(el => {
+      const val = el.value.trim();
+      if (!val) return;
+      if (el.dataset.paramKind === 'table') {
+        const errEl = document.getElementById('json-error-' + el.dataset.paramName);
+        try {
+          const parsed = JSON.parse(val);
+          el.classList.remove('is-invalid');
+          params[el.dataset.paramName] = Array.isArray(parsed) ? parsed : [parsed];
+        } catch {
+          el.classList.add('is-invalid');
+          if (errEl) errEl.style.display = 'block';
+          tableError = true;
+        }
+      } else {
+        params[el.dataset.paramName] = coerceByExid(val, el.dataset.exid || '');
+      }
+    });
+    if (tableError) {
+      document.getElementById('btn-run').disabled = false;
+      document.getElementById('run-spinner').classList.add('d-none');
+      return;
+    }
+  }
+
+  document.getElementById('btn-run').disabled = true;
+  document.getElementById('run-spinner').classList.remove('d-none');
+  document.getElementById('run-error').classList.add('d-none');
+
+  try {
+    const t0 = performance.now();
+    const res = await fetch(`/api/bapi/${encodeURIComponent(BAPI_NAME)}/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parameters: params }),
+    });
+    const elapsed = performance.now() - t0;
+
+    const json = await res.json();
+
+    if (!res.ok) {
+      const errDetail = json.detail || res.statusText;
+      document.getElementById('run-error-text').textContent = errDetail;
+      document.getElementById('run-error').classList.remove('d-none');
+      // Feature 3: record failure in history
+      addHistoryEntry({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+        timestamp: new Date().toISOString(),
+        params,
+        success: false,
+        duration_ms: elapsed,
+        return_message_count: 0,
+        error_detail: errDetail,
+      });
+      return;
+    }
+
+    renderResult(json, elapsed);
+    // Feature 3: record execution in history
+    const _hMsgs = json.return_messages || [];
+    const _hErr  = _hMsgs.find(m => m.type === 'E' || m.type === 'A');
+    addHistoryEntry({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+      timestamp: new Date().toISOString(),
+      params,
+      success: json.success,
+      duration_ms: elapsed,
+      return_message_count: _hMsgs.length,
+      error_detail: _hErr ? (_hErr.message || '') : '',
+    });
+    // Switch to result tab
+    document.getElementById('tab-result').click();
+  } catch (err) {
+    document.getElementById('run-error-text').textContent = err.message;
+    document.getElementById('run-error').classList.remove('d-none');
+  } finally {
+    document.getElementById('btn-run').disabled = false;
+    document.getElementById('run-spinner').classList.add('d-none');
+  }
+}
+
+// ── Render result ─────────────────────────────────────────────────────────
+function renderResult(data, elapsedMs) {
+  lastResultData = data;  // Feature 5
+  document.getElementById('result-empty').classList.add('d-none');
+  document.getElementById('result-content').classList.remove('d-none');
+  // Clean up CSV sections from a previous run
+  document.querySelectorAll('.csv-tables-section').forEach(el => el.remove());
+
+  // Status
+  const statusEl = document.getElementById('result-status');
+  if (data.success) {
+    const timeStr = elapsedMs != null
+      ? ` <span class="ms-2 text-success-emphasis small fw-normal"><i class="bi bi-stopwatch me-1"></i>${elapsedMs < 1000 ? Math.round(elapsedMs) + ' ms' : (elapsedMs / 1000).toFixed(2) + ' s'}</span>`
+      : '';
+    statusEl.className = 'alert alert-success mb-3';
+    statusEl.innerHTML = `<i class="bi bi-check-circle-fill me-2"></i><strong>Success</strong> — BAPI executed successfully.${timeStr}`;
+  } else {
+    statusEl.className = 'alert alert-danger mb-3';
+    statusEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-2"></i><strong>Error</strong> — BAPI returned error messages.';
+  }
+
+  // Result badge on tab
+  const badge = document.getElementById('result-badge');
+  badge.textContent = data.success ? '✓' : '✕';
+  badge.className = `badge ms-1 ${data.success ? 'bg-success' : 'bg-danger'}`;
+  badge.classList.remove('d-none');
+
+  // Return messages
+  const msgs = data.return_messages || [];
+  const msgsSection = document.getElementById('result-messages-section');
+  if (msgs.length) {
+    msgsSection.classList.remove('d-none');
+    document.getElementById('result-messages').innerHTML = msgs.map(m => `
+      <div class="alert alert-${msgClass(m.type)} py-2 mb-2" role="alert">
+        <span class="badge bg-${msgClass(m.type)} me-2">${escHtml(m.type)}</span>
+        ${escHtml(m.message || '')}
+        ${m.id ? `<small class="text-muted ms-2">[${escHtml(m.id)}/${escHtml(m.number)}]</small>` : ''}
+      </div>`).join('');
+  } else {
+    msgsSection.classList.add('d-none');
+  }
+
+  // Raw JSON
+  document.getElementById('result-json').textContent = JSON.stringify(data.data, null, 2);
+
+  // Feature 5: CSV export sections for table outputs
+  const csvTables = Object.entries(data.data || {}).filter(
+    ([, v]) => Array.isArray(v) && v.length > 0 && v[0] !== null && typeof v[0] === 'object'
+  );
+  if (csvTables.length) {
+    const csvSection = document.createElement('div');
+    csvSection.className = 'csv-tables-section mt-3 mb-3';
+    csvTables.forEach(([key, rows]) => {
+      const div = document.createElement('div');
+      div.className = 'mb-2';
+      div.innerHTML = `
+        <div class="d-flex align-items-center justify-content-between mb-1">
+          <h6 class="text-uppercase text-muted fw-semibold small mb-0">
+            <i class="bi bi-table me-1"></i>${escHtml(key)} — ${rows.length} row${rows.length !== 1 ? 's' : ''}
+          </h6>
+          <button class="btn btn-sm btn-outline-secondary btn-export-csv" data-table-key="${escAttr(key)}">
+            <i class="bi bi-download me-1"></i>Export CSV
+          </button>
+        </div>`;
+      csvSection.appendChild(div);
+    });
+    document.getElementById('raw-output-section').insertAdjacentElement('beforebegin', csvSection);
+  }
+}
+
+function msgClass(type) {
+  return { E: 'danger', A: 'danger', W: 'warning', S: 'success', I: 'info' }[type] || 'secondary';
+}
+
+// ── Copy JSON ─────────────────────────────────────────────────────────────
+document.getElementById('btn-copy-result').addEventListener('click', () => {
+  const text = document.getElementById('result-json').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('btn-copy-result');
+    btn.innerHTML = '<i class="bi bi-clipboard-check me-1"></i>Copied!';
+    setTimeout(() => { btn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copy JSON'; }, 2000);
+  });
+});
+
+// ── Copy param name on click ──────────────────────────────────────────────
+document.addEventListener('click', (e) => {
+  const cell = e.target.closest('.param-name-cell');
+  if (!cell) return;
+  const name = cell.dataset.copyName;
+  navigator.clipboard.writeText(name).then(() => {
+    const icon = cell.querySelector('.param-copy-icon');
+    icon.className = 'bi bi-clipboard-check param-copy-icon copied';
+    setTimeout(() => { icon.className = 'bi bi-clipboard param-copy-icon'; }, 1500);
+  }).catch(() => {});
+});
+
+// ── Structure parameter filter ────────────────────────────────────────────
+document.getElementById('structure-filter-input').addEventListener('input', applyStructureFilter);
+document.getElementById('btn-clear-structure-filter').addEventListener('click', () => {
+  document.getElementById('structure-filter-input').value = '';
+  applyStructureFilter();
+});
+
+function applyStructureFilter() {
+  const t = document.getElementById('structure-filter-input').value.toLowerCase().trim();
+  let total = 0, shown = 0;
+
+  document.querySelectorAll('#structure-content tbody tr[data-param-name]').forEach(tr => {
+    const match = !t || tr.dataset.paramName.includes(t) || tr.dataset.paramDesc.includes(t);
+    tr.classList.toggle('d-none', !match);
+    // Keep type-detail expansion rows in sync with their parent
+    let next = tr.nextElementSibling;
+    while (next && next.dataset.typeDetailFor !== undefined) {
+      next.classList.toggle('d-none', !match);
+      next = next.nextElementSibling;
+    }
+    total++;
+    if (match) shown++;
+  });
+
+  // Dim section cards that have no visible rows
+  ['import','export','changing','tables','exceptions'].forEach(id => {
+    const section = document.getElementById('section-' + id);
+    if (!section || section.classList.contains('d-none')) return;
+    const anyVisible = Array.from(
+      section.querySelectorAll('tbody tr[data-param-name]')
+    ).some(tr => !tr.classList.contains('d-none'));
+    section.style.opacity = anyVisible ? '' : '0.35';
+  });
+
+  document.getElementById('structure-filter-count').textContent =
+    t ? `${shown} / ${total}` : '';
+}
+
+// ── Type field expansion ──────────────────────────────────────────────────
+const _typeFieldCache = {};
+
+async function fetchTypeFields(typeName) {
+  if (_typeFieldCache[typeName] !== undefined) return _typeFieldCache[typeName];
+  const res = await fetch(`/api/bapi/type-info?name=${encodeURIComponent(typeName)}`);
+  if (!res.ok) throw new Error(`Failed to load ${typeName}: ${res.statusText}`);
+  const data = await res.json();
+  _typeFieldCache[typeName] = data.fields || [];
+  return _typeFieldCache[typeName];
+}
+
+function typeFieldsTableHtml(fields, typeName) {
+  if (!fields.length) {
+    return `<div class="p-2 text-muted small"><i class="bi bi-info-circle me-1"></i>No structure fields found for <code>${escHtml(typeName)}</code>.</div>`;
+  }
+  return `<div class="table-responsive"><table class="table table-sm table-bordered mb-0" style="font-size:.8rem">
+    <thead class="table-secondary"><tr><th>Field</th><th>Type</th><th>Len</th><th>Description</th></tr></thead>
+    <tbody>${fields.map(f =>
+      `<tr>
+        <td class="font-monospace fw-semibold">${escHtml(f.name)}</td>
+        <td><span class="badge bg-light text-secondary border font-monospace" style="font-size:.7rem">${escHtml(f.data_type)}</span></td>
+        <td class="text-muted">${f.length || ''}</td>
+        <td class="text-muted small">${escHtml(f.description)}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+// Structure tab: expand type badge → insert detail row below
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.btn-type-expand');
+  if (!btn) return;
+  const typeName = btn.dataset.typeName;
+  const tr = btn.closest('tr');
+  const colCount = tr.querySelectorAll('td').length;
+  const icon = btn.querySelector('i');
+
+  const next = tr.nextElementSibling;
+  if (next && next.dataset.typeDetailFor === typeName) {
+    const isHidden = next.classList.toggle('d-none');
+    icon.className = `bi ${isHidden ? 'bi-chevron-right' : 'bi-chevron-down'}`;
+    return;
+  }
+
+  const detailTr = document.createElement('tr');
+  detailTr.dataset.typeDetailFor = typeName;
+  detailTr.classList.add('type-detail-row');
+  const td = document.createElement('td');
+  td.colSpan = colCount;
+  td.classList.add('p-0');
+  td.innerHTML = `<div class="p-2 text-muted small"><span class="spinner-border spinner-border-sm me-1"></span>Loading ${escHtml(typeName)}…</div>`;
+  detailTr.appendChild(td);
+  tr.insertAdjacentElement('afterend', detailTr);
+  icon.className = 'bi bi-chevron-down';
+
+  try {
+    const fields = await fetchTypeFields(typeName);
+    td.innerHTML = typeFieldsTableHtml(fields, typeName);
+  } catch (err) {
+    td.innerHTML = `<div class="p-2 text-danger small"><i class="bi bi-exclamation-triangle me-1"></i>${escHtml(err.message)}</div>`;
+    icon.className = 'bi bi-chevron-right';
+  }
+});
+
+// Run tab: expand type fields below a param input
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.btn-run-type-expand');
+  if (!btn) return;
+  const typeName = btn.dataset.typeName;
+  const container = btn.nextElementSibling;
+  const icon = btn.querySelector('i');
+
+  if (container.children.length > 0) {
+    const isHidden = container.classList.toggle('d-none');
+    icon.className = `bi ${isHidden ? 'bi-info-circle' : 'bi-chevron-up'} me-1`;
+    return;
+  }
+
+  container.classList.remove('d-none');
+  container.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span><small class="text-muted">Loading…</small>`;
+  icon.className = 'bi bi-chevron-up me-1';
+
+  try {
+    const fields = await fetchTypeFields(typeName);
+    container.innerHTML = typeFieldsTableHtml(fields, typeName);
+  } catch (err) {
+    container.innerHTML = `<small class="text-danger"><i class="bi bi-exclamation-triangle me-1"></i>${escHtml(err.message)}</small>`;
+    icon.className = 'bi bi-info-circle me-1';
+  }
+});
+
+// ── Feature 1: localStorage input persistence ─────────────────────────────
+const LS_INPUTS_KEY = `bapi-inputs-${BAPI_NAME}`;
+
+function saveInputsToStorage() {
+  const saved = {};
+  document.querySelectorAll('input[data-param-name], textarea[data-param-name]').forEach(el => {
+    saved[el.dataset.paramName] = el.value;
+  });
+  const rawVal = document.getElementById('raw-json-input').value;
+  if (rawVal) saved['__raw__'] = rawVal;
+  try { localStorage.setItem(LS_INPUTS_KEY, JSON.stringify(saved)); } catch (_) {}
+}
+
+function restoreInputsFromStorage() {
+  try {
+    const raw = localStorage.getItem(LS_INPUTS_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    document.querySelectorAll('input[data-param-name], textarea[data-param-name]').forEach(el => {
+      if (val !== undefined) el.value = val;
+    });
+    if (saved['__raw__'] !== undefined) {
+      document.getElementById('raw-json-input').value = saved['__raw__'];
+    }
+  } catch (_) {}
+}
+
+// Save on every input/change (delegated)
+document.addEventListener('input', (e) => {
+  if (e.target.matches('[data-param-name]') || e.target.id === 'raw-json-input') {
+    saveInputsToStorage();
+  }
+});
+document.addEventListener('change', (e) => {
+  if (e.target.matches('[data-param-name]') || e.target.id === 'raw-json-input') {
+    saveInputsToStorage();
+  }
+});
+
+// ── Feature 2: Fill skeleton ──────────────────────────────────────────────
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.btn-skeleton');
+  if (!btn) return;
+  const typeName  = btn.dataset.typeName;
+  const targetId  = btn.dataset.targetId;
+  const mode      = btn.dataset.skeletonMode;   // "table" | "scalar"
+  const textarea  = document.getElementById(targetId);
+  if (!textarea) return;
+
+  if (textarea.value.trim()) {
+    if (!confirm(`This will overwrite existing content for ${typeName}. Continue?`)) return;
+  }
+
+  const origHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Loading…';
+
+  try {
+    const fields = await fetchTypeFields(typeName);
+    const skeleton = {};
+    fields.forEach(f => { skeleton[f.name] = ''; });
+    textarea.value = mode === 'table'
+      ? JSON.stringify([skeleton], null, 2)
+      : JSON.stringify(skeleton, null, 2);
+    saveInputsToStorage();
+  } catch (err) {
+    alert(`Failed to load ${typeName} fields: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = origHtml;
+  }
+});
+
+// ── Feature 3: Run history ────────────────────────────────────────────────
+const LS_HISTORY_KEY = `bapi-history-${BAPI_NAME}`;
+const _MAX_HISTORY   = 20;
+
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem(LS_HISTORY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (_) { return []; }
+}
+
+function saveHistory(entries) {
+  try { localStorage.setItem(LS_HISTORY_KEY, JSON.stringify(entries)); } catch (_) {}
+}
+
+function addHistoryEntry(entry) {
+  const entries = loadHistory();
+  entries.unshift(entry);
+  if (entries.length > _MAX_HISTORY) entries.splice(_MAX_HISTORY);
+  saveHistory(entries);
+  renderHistory();
+}
+
+function renderHistory() {
+  const entries = loadHistory();
+  const list    = document.getElementById('history-list');
+  const badge   = document.getElementById('history-badge');
+  if (badge) {
+    if (entries.length > 0) {
+      badge.textContent = entries.length;
+      badge.classList.remove('d-none');
+    } else {
+      badge.classList.add('d-none');
+    }
+  }
+  if (!entries.length) {
+    list.innerHTML = '<div class="text-center py-5 text-muted">'
+      + '<i class="bi bi-clock-history fs-1 d-block mb-2"></i>'
+      + '<p class="mb-0">No executions yet for this function.</p></div>';
+    return;
+  }
+  list.innerHTML = entries.map(entry => {
+    const ts       = new Date(entry.timestamp);
+    const tsStr    = ts.toLocaleString();
+    const paramStr = JSON.stringify(entry.params || {});
+    const paramTrunc = paramStr.length > 100 ? paramStr.slice(0, 97) + '…' : paramStr;
+    const durStr   = entry.duration_ms != null ? `${Math.round(entry.duration_ms)} ms` : '—';
+    const bClass   = entry.success ? 'bg-success' : 'bg-danger';
+    const bLabel   = entry.success ? 'Success' : 'Error';
+    return `
+      <div class="card shadow-sm mb-2" data-history-id="${escAttr(entry.id)}">
+        <div class="card-body py-2 px-3">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div>
+              <span class="badge ${bClass} me-1">${bLabel}</span>
+              <span class="text-muted small">${escHtml(tsStr)}</span>
+              <span class="ms-2 text-muted small"><i class="bi bi-stopwatch me-1"></i>${escHtml(durStr)}</span>
+            </div>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-sm btn-outline-primary btn-history-replay"
+                      data-history-id="${escAttr(entry.id)}">
+                <i class="bi bi-arrow-counterclockwise me-1"></i>Replay
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-danger btn-history-delete"
+                      data-history-id="${escAttr(entry.id)}">
+                <i class="bi bi-trash me-1"></i>Delete
+              </button>
+            </div>
+          </div>
+          ${entry.error_detail ? `<div class="mt-1 text-danger small"><i class="bi bi-exclamation-triangle me-1"></i>${escHtml(entry.error_detail)}</div>` : ''}
+          <div class="mt-1 text-muted font-monospace" style="font-size:.75rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escAttr(paramStr)}">${escHtml(paramTrunc)}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// History: clear all
+document.getElementById('btn-clear-history').addEventListener('click', () => {
+  if (!loadHistory().length) return;
+  if (!confirm('Clear all execution history for this function?')) return;
+  saveHistory([]);
+  renderHistory();
+});
+
+// History: replay / delete (delegated)
+document.addEventListener('click', (e) => {
+  const replayBtn = e.target.closest('.btn-history-replay');
+  if (replayBtn) {
+    const id    = replayBtn.dataset.historyId;
+    const entry = loadHistory().find(h => h.id === id);
+    if (!entry) return;
+    document.getElementById('raw-json-input').value = JSON.stringify(entry.params || {}, null, 2);
+    saveInputsToStorage();
+    document.getElementById('tab-run').click();
+    return;
+  }
+  const deleteBtn = e.target.closest('.btn-history-delete');
+  if (deleteBtn) {
+    const id = deleteBtn.dataset.historyId;
+    saveHistory(loadHistory().filter(h => h.id !== id));
+    renderHistory();
+  }
+});
+
+// Initial history render
+renderHistory();
+
+// ── Feature 5: CSV export ─────────────────────────────────────────────────
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.btn-export-csv');
+  if (!btn) return;
+  const key = btn.dataset.tableKey;
+  if (!lastResultData || !lastResultData.data) return;
+  const rows = lastResultData.data[key];
+  if (!Array.isArray(rows) || !rows.length) return;
+
+  const cols = Object.keys(rows[0]);
+
+  function csvCell(val) {
+    const s = (val === null || val === undefined) ? ''
+      : (typeof val === 'object' ? JSON.stringify(val) : String(val));
+    if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
+      return '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+  }
+
+  const header   = cols.map(csvCell).join(',');
+  const dataRows = rows.map(row => cols.map(c => csvCell(row[c])).join(','));
+  const csv      = [header, ...dataRows].join('\r\n');
+
+  const today    = new Date().toISOString().slice(0, 10);
+  const filename = `${BAPI_NAME}_${key}_${today}.csv`;
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+// ── Utilities ─────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) {
+  return String(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ── AI Chat Panel ──────────────────────────────────────────────────────────
+
+const _aiSessionId = crypto.randomUUID();
+let _aiIsOpen = false;
+let _aiIsStreaming = false;
+
+// Simple markdown: bold, inline code, fenced code blocks, headers, bullets
+function renderMarkdown(text) {
+  // fenced code blocks
+  text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) =>
+    `<pre><code>${escHtml(code.trimEnd())}</code></pre>`);
+  // inline code
+  text = text.replace(/`([^`]+)`/g, (_, c) => `<code>${escHtml(c)}</code>`);
+  // bold
+  text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  // headings
+  text = text.replace(/^#{1,3}\s+(.+)$/gm, '<strong>$1</strong>');
+  // bullets
+  text = text.replace(/^[-*]\s+(.+)$/gm, '• $1');
+  // line breaks
+  text = text.replace(/\n/g, '<br>');
+  return text;
+}
+
+function aiToggle() {
+  _aiIsOpen = !_aiIsOpen;
+  document.getElementById('ai-chat-panel').classList.toggle('open', _aiIsOpen);
+  document.getElementById('ai-backdrop').classList.toggle('visible', _aiIsOpen);
+  if (_aiIsOpen) {
+    // Show welcome message if empty
+    const msgs = document.getElementById('ai-messages');
+    if (!msgs.querySelector('.ai-msg')) {
+      const bapiName = document.getElementById('bapi-name-val')?.value || '{{ bapi_name }}';
+      aiAddAssistantMsg(`Hi! I'm your SAP BAPI assistant. I'm here to help you understand **${escHtml(bapiName)}** — ask me about parameters, structures, example values, or error messages.`);
+    }
+    setTimeout(() => document.getElementById('ai-input').focus(), 200);
+  }
+}
+
+function aiClose() {
+  _aiIsOpen = false;
+  document.getElementById('ai-chat-panel').classList.remove('open');
+  document.getElementById('ai-backdrop').classList.remove('visible');
+}
+
+function aiAddUserMsg(text) {
+  const msgs = document.getElementById('ai-messages');
+  const el = document.createElement('div');
+  el.className = 'ai-msg user';
+  el.textContent = text;
+  msgs.appendChild(el);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function aiAddAssistantMsg(markdown) {
+  const msgs = document.getElementById('ai-messages');
+  const el = document.createElement('div');
+  el.className = 'ai-msg assistant';
+  el.innerHTML = renderMarkdown(markdown);
+  msgs.appendChild(el);
+  msgs.scrollTop = msgs.scrollHeight;
+  return el;
+}
+
+function aiAddTyping() {
+  const msgs = document.getElementById('ai-messages');
+  const el = document.createElement('div');
+  el.className = 'ai-typing';
+  el.id = 'ai-typing-indicator';
+  el.innerHTML = `<span class="ai-typing-dots"><span></span><span></span><span></span></span><span>Thinking…</span>`;
+  msgs.appendChild(el);
+  msgs.scrollTop = msgs.scrollHeight;
+  return el;
+}
+
+function aiRemoveTyping() {
+  document.getElementById('ai-typing-indicator')?.remove();
+}
+
+async function aiSend() {
+  if (_aiIsStreaming) return;
+
+  const input = document.getElementById('ai-input');
+  const message = input.value.trim();
+  if (!message) return;
+
+  input.value = '';
+  input.style.height = '';
+
+  aiAddUserMsg(message);
+
+  // Collect current BAPI context
+  const bapiName = '{{ bapi_name }}';
+  const bapiDesc = document.getElementById('bapi-description')?.textContent || '';
+
+  // Collect FULL params from cached structure (all sections, all fields)
+  let bapiParams = null;
+  if (window._structureCache) {
+    try {
+      const params = [];
+      ['import','export','changing','tables','exceptions'].forEach(cls => {
+        (window._structureCache[cls] || []).forEach(p => params.push({...p, paramclass: cls.toUpperCase()}));
+      });
+      if (params.length) bapiParams = params;
+    } catch (_) {}
+  }
+
+  // Collect type field drill-down cache (any types already expanded by the user)
+  let bapiTypeFields = null;
+  if (Object.keys(_typeFieldCache).length > 0) {
+    bapiTypeFields = {..._typeFieldCache};
+  }
+
+  _aiIsStreaming = true;
+  document.getElementById('ai-send-btn').disabled = true;
+  aiAddTyping();
+
+  let msgEl = null;
+  let accumulated = '';
+
+  try {
+    const res = await fetch('/api/ai/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message,
+        session_id: _aiSessionId,
+        bapi_name: bapiName || null,
+        bapi_description: bapiDesc || null,
+        bapi_params: bapiParams,
+        bapi_type_fields: bapiTypeFields,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || res.statusText);
+    }
+
+    aiRemoveTyping();
+    msgEl = document.createElement('div');
+    msgEl.className = 'ai-msg assistant';
+    document.getElementById('ai-messages').appendChild(msgEl);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const payload = line.slice(6);
+        if (payload === '[DONE]') break;
+        try {
+          const chunk = JSON.parse(payload);
+          accumulated += chunk;
+          msgEl.innerHTML = renderMarkdown(accumulated);
+          document.getElementById('ai-messages').scrollTop = document.getElementById('ai-messages').scrollHeight;
+        } catch (_) {}
+      }
+    }
+
+  } catch (err) {
+    aiRemoveTyping();
+    const errEl = document.createElement('div');
+    errEl.className = 'ai-msg error';
+    errEl.innerHTML = `<i class="bi bi-exclamation-triangle me-1"></i>${escHtml(String(err))}`;
+    document.getElementById('ai-messages').appendChild(errEl);
+    document.getElementById('ai-messages').scrollTop = document.getElementById('ai-messages').scrollHeight;
+  } finally {
+    _aiIsStreaming = false;
+    document.getElementById('ai-send-btn').disabled = false;
+    document.getElementById('ai-input').focus();
+  }
+}
+
+function aiClear() {
+  document.getElementById('ai-messages').innerHTML = '';
+  fetch(`/api/ai/sessions/${_aiSessionId}`, { method: 'DELETE' }).catch(() => {});
+}
+
+// Clean up session on page leave
+window.addEventListener('beforeunload', () => {
+  navigator.sendBeacon(`/api/ai/sessions/${_aiSessionId}`, '');
+});
+</script>
+
+<!-- ── AI Chat Panel — placed outside <main> (in scripts block, after </main>) ── -->
+<div id="ai-backdrop" onclick="aiClose()"></div>
+
+<button id="ai-chat-btn" class="btn btn-primary" onclick="aiToggle()" title="AI Assistant"
+  style="position:fixed;bottom:1.5rem;right:1.5rem;z-index:1040;width:3rem;height:3rem;border-radius:50%;display:flex;align-items:center;justify-content:center;">
+  <i class="bi bi-stars"></i>
+</button>
+
+<div id="ai-chat-panel" role="complementary" aria-label="AI Assistant"
+  style="position:fixed;right:0;top:0;height:100vh;width:400px;max-width:95vw;z-index:1050;display:flex;flex-direction:column;">
+  <div class="ai-panel-header">
+    <i class="bi bi-stars fs-5"></i>
+    <span class="ai-panel-title">AI Assistant</span>
+    <span id="ai-context-pill" class="badge bg-white bg-opacity-25 text-white" title="{{ bapi_name }}">{{ bapi_name }}</span>
+    <button type="button" class="btn btn-sm btn-link text-white p-0 ms-1" onclick="aiClear()" title="Clear chat">
+      <i class="bi bi-trash3"></i>
+    </button>
+    <button type="button" class="btn-close ms-2" onclick="aiClose()" aria-label="Close chat"></button>
+  </div>
+
+  <div id="ai-messages" aria-live="polite" aria-label="Chat messages"></div>
+
+  <div id="ai-input-area">
+    <div class="d-flex gap-2">
+      <textarea id="ai-input" class="form-control" rows="1"
+        placeholder="Ask about parameters, structures, errors…"
+        aria-label="Message to AI assistant"></textarea>
+      <button id="ai-send-btn" class="btn btn-primary px-3" onclick="aiSend()" title="Send (Enter)">
+        <i class="bi bi-send-fill"></i>
+      </button>
+    </div>
+    <div class="mt-1 text-muted" style="font-size:.7rem">
+      <i class="bi bi-info-circle me-1"></i>Powered by GitHub Copilot · Enter to send · Shift+Enter for newline
+    </div>
+  </div>
+</div>
+
+<script>
+// #ai-input now exists — safe to attach keydown listener
+document.getElementById('ai-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    aiSend();
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}BAPI Explorer{% endblock %}</title>
+  <!-- Apply theme before CSS loads to prevent flash of unstyled content -->
+  <script>
+  (function () {
+    var t = localStorage.getItem('bapi-theme') || 'system';
+    var effective = t === 'system'
+      ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+      : t;
+    document.documentElement.setAttribute('data-bs-theme', effective);
+  })();
+  </script>
+  <link rel="stylesheet" href="/static/vendor/bootstrap.min.css" />
+  <link rel="stylesheet" href="/static/vendor/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="/static/css/app.css?v=4" />
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold" href="/">
+        <i class="bi bi-diagram-3-fill me-2"></i>BAPI Explorer
+      </a>
+      <div class="ms-auto d-flex align-items-center gap-2">
+        <!-- Theme switcher -->
+        <div class="dropdown">
+          <button class="btn btn-sm btn-outline-light" data-bs-toggle="dropdown"
+                  aria-label="Switch theme" title="Switch theme" id="theme-btn">
+            <i id="theme-icon" class="bi bi-circle-half"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end" style="min-width:130px">
+            <li><button class="dropdown-item" data-theme="system">
+              <i class="bi bi-circle-half me-2"></i>System</button></li>
+            <li><button class="dropdown-item" data-theme="light">
+              <i class="bi bi-sun-fill me-2"></i>Light</button></li>
+            <li><button class="dropdown-item" data-theme="dark">
+              <i class="bi bi-moon-stars-fill me-2"></i>Dark</button></li>
+          </ul>
+        </div>
+        <div class="dropdown" id="profile-dropdown">
+          <button class="btn btn-sm btn-outline-light dropdown-toggle" type="button"
+                  id="profile-dropdown-btn" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-plug-fill me-1"></i><span id="active-profile-label">SAP</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end" id="profile-dropdown-menu" aria-labelledby="profile-dropdown-btn">
+            <li><span class="dropdown-item-text text-muted small">Loading…</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main content -->
+  <main class="container py-4">
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="/static/vendor/bootstrap.bundle.min.js"></script>
+  <script src="/static/js/app.js"></script>
+
+  <!-- Profile navbar loader (Feature 4) -->
+  <script>
+  (function () {
+    function _esc(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    async function loadProfiles() {
+      try {
+        const [activeRes, listRes] = await Promise.all([
+          fetch('/api/profiles/active'),
+          fetch('/api/profiles'),
+        ]);
+        if (!activeRes.ok || !listRes.ok) return;
+        const active = await activeRes.json();
+        const list   = await listRes.json();
+
+        const labelEl = document.getElementById('active-profile-label');
+        if (labelEl) labelEl.textContent = active.label || active.name;
+
+        const menu = document.getElementById('profile-dropdown-menu');
+        if (!menu) return;
+
+        menu.innerHTML = (list.profiles || []).map(p => `
+          <li>
+            <button class="dropdown-item d-flex flex-column align-items-start ${p.is_active ? 'active' : ''}"
+                    data-profile-name="${_esc(p.name)}" type="button">
+              <span>${p.is_active ? '<i class="bi bi-check2 me-1"></i>' : '<span style="display:inline-block;width:1.1em"></span>'}<strong>${_esc(p.label || p.name)}</strong></span>
+              ${p.description ? `<small class="text-muted ms-3">${_esc(p.description)}</small>` : ''}
+            </button>
+          </li>`).join('');
+
+        menu.addEventListener('click', async (e) => {
+          const btn = e.target.closest('[data-profile-name]');
+          if (!btn) return;
+          try {
+            await fetch('/api/profiles/active', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: btn.dataset.profileName }),
+            });
+            location.reload();
+          } catch (_) {}
+        });
+      } catch (_) {}
+    }
+    loadProfiles();
+  })();
+  </script>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

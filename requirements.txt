@@ -1,0 +1,8 @@
+fastapi==0.115.12
+uvicorn[standard]==0.34.3
+jinja2==3.1.6
+python-dotenv==1.1.0
+pyrfc==3.3.1          # SAP NW RFC SDK wrapper (Windows); install after setting SAPNWRFC_HOME
+pydantic==2.11.5
+python-multipart==0.0.20  # form data support
+github-copilot-sdk==1.0.0  # AI assistant integration
