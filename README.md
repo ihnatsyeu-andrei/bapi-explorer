@@ -13,6 +13,7 @@ Built with **FastAPI** + **pyrfc** (SAP NW RFC SDK wrapper), with a Bootstrap 5 
 |-|-|
 | 🔍 **Wildcard search** | Find RFC function modules by SAP wildcard pattern (`BAPI_SALES*`, `*MATERIAL*`, `RFC_READ+TABLE`) |
 | 🕒 **Recent searches** | Last 10 searches shown in a dropdown when you focus the search box; click to re-run |
+| 📌 **Favorites / bookmarks** | Pin frequently-used BAPIs from search results; dedicated Favorites section persists in `localStorage` and survives refresh |
 | 🏷️ **Group filter** | Dropdown to narrow results by SAP function group, auto-populated from search results |
 | ✏️ **Term highlighting** | Matching text highlighted in results (yellow) for quick scanning |
 | 📋 **Instant filter** | Filter the results table by name, group, or description without re-querying SAP |
@@ -257,4 +258,3 @@ bapi-explorer/
 | `RFC_GET_FUNCTION_INTERFACE` | Get parameter interface (direction, ABAP type, EXID, optional flag); also used at run-time for type coercion |
 | `DDIF_FIELDINFO_GET` | Fetch field definitions (name, data type, length, description) for any ABAP structure or table type |
 | Direct `pyrfc.Connection.call()` | Execute any BAPI/RFC function with given parameters |
-
