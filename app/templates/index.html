@@ -48,6 +48,22 @@
       </div>
     </div>
 
+    <!-- Favorites -->
+    <div id="favorites-card" class="card shadow-sm mb-4 d-none">
+      <div class="card-body p-3">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h2 class="h6 mb-0 fw-bold">
+            <i class="bi bi-star-fill text-warning me-2"></i>Favorites
+          </h2>
+          <span id="favorites-count" class="badge bg-secondary-subtle text-secondary-emphasis">0</span>
+        </div>
+        <div id="favorites-empty" class="text-muted small">
+          Pin frequently-used BAPIs from search results to see them here.
+        </div>
+        <div id="favorites-list" class="list-group list-group-flush d-none"></div>
+      </div>
+    </div>
+
     <!-- Results -->
     <div id="search-results-panel" class="d-none">
       <div class="d-flex align-items-center justify-content-between mb-2">
@@ -84,6 +100,7 @@
                 <th>Function Module</th>
                 <th>Group</th>
                 <th>Description</th>
+                <th class="text-center" style="width:80px">Pin</th>
                 <th class="text-center" style="width:80px">Open</th>
               </tr>
             </thead>
@@ -121,8 +138,13 @@ const groupSel   = document.getElementById('group-filter');
 const noResults  = document.getElementById('no-results');
 const table      = document.getElementById('results-table');
 const recentDrop = document.getElementById('recent-dropdown');
+const favoritesCard  = document.getElementById('favorites-card');
+const favoritesCount = document.getElementById('favorites-count');
+const favoritesEmpty = document.getElementById('favorites-empty');
+const favoritesList  = document.getElementById('favorites-list');
 
 const LS_RECENT_KEY = 'bapi-recent-searches';
+const LS_FAVORITES_KEY = 'bapi-favorites';
 let allRows = [];
 let currentTerm = '';
 const PAGE_SIZE = 50;
@@ -167,6 +189,104 @@ recentDrop.addEventListener('mousedown', (e) => {
     localStorage.removeItem(LS_RECENT_KEY);
     recentDrop.classList.add('d-none');
   }
+});
+
+// ── Favorites ───────────────────────────────────────────────────────────────
+function loadFavorites() {
+  try {
+    const list = JSON.parse(localStorage.getItem(LS_FAVORITES_KEY) || '[]');
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveFavorites(list) {
+  localStorage.setItem(LS_FAVORITES_KEY, JSON.stringify(list));
+}
+
+function isFavorite(name) {
+  const target = (name || '').toUpperCase();
+  return loadFavorites().some(item => (item.name || '').toUpperCase() === target);
+}
+
+function setFavoriteButtonState(btn, favored) {
+  btn.className = favored
+    ? 'btn btn-sm btn-warning'
+    : 'btn btn-sm btn-outline-warning';
+  btn.innerHTML = favored
+    ? '<i class="bi bi-star-fill"></i>'
+    : '<i class="bi bi-star"></i>';
+  btn.setAttribute('aria-label', favored ? 'Unpin favorite' : 'Pin favorite');
+  btn.title = favored ? 'Unpin favorite' : 'Pin favorite';
+}
+
+function syncFavoriteButtons(name) {
+  const encodedName = encodeURIComponent(name);
+  const favored = isFavorite(name);
+  document.querySelectorAll(`[data-fav-toggle][data-fav-name="${encodedName}"]`).forEach(btn => {
+    setFavoriteButtonState(btn, favored);
+  });
+}
+
+function toggleFavorite(item) {
+  const list = loadFavorites();
+  const target = (item.name || '').toUpperCase();
+  const idx = list.findIndex(f => (f.name || '').toUpperCase() === target);
+  if (idx >= 0) {
+    list.splice(idx, 1);
+  } else {
+    list.unshift({
+      name: item.name,
+      group: item.group || '',
+      description: item.description || ''
+    });
+  }
+  saveFavorites(list);
+  renderFavorites();
+  syncFavoriteButtons(item.name);
+}
+
+function renderFavorites() {
+  const items = loadFavorites();
+  favoritesCard.classList.toggle('d-none', items.length === 0);
+  favoritesCount.textContent = String(items.length);
+  favoritesEmpty.classList.toggle('d-none', items.length > 0);
+  favoritesList.classList.toggle('d-none', items.length === 0);
+  if (!items.length) {
+    favoritesList.innerHTML = '';
+    return;
+  }
+
+  favoritesList.innerHTML = items.map(item => {
+    const encodedName = encodeURIComponent(item.name || '');
+    const href = `/bapi/${encodedName}`;
+    const description = item.description ? escHtml(item.description) : 'No description';
+    const group = item.group ? ` • ${escHtml(item.group)}` : '';
+    return `
+      <div class="list-group-item px-0 d-flex align-items-center justify-content-between gap-2">
+        <div class="flex-grow-1 overflow-hidden">
+          <a href="${href}" class="text-decoration-none fw-semibold font-monospace">${escHtml(item.name || '')}</a>
+          <div class="text-muted small text-truncate">${description}${group}</div>
+        </div>
+        <button type="button"
+                class="btn btn-sm btn-warning flex-shrink-0"
+                data-fav-remove="1"
+                data-fav-name="${encodedName}"
+                title="Unpin favorite"
+                aria-label="Unpin favorite">
+          <i class="bi bi-star-fill"></i>
+        </button>
+      </div>`;
+  }).join('');
+}
+
+favoritesList.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-fav-remove]');
+  if (!btn) return;
+  const name = decodeURIComponent(btn.dataset.favName || '');
+  if (!name) return;
+  toggleFavorite({ name });
 });
 
 // ── Search form ───────────────────────────────────────────────────────────
@@ -315,21 +435,36 @@ function renderResults(items) {
     groupSel.classList.remove('d-none');
   }
 
+  const favoriteNames = new Set(loadFavorites().map(f => (f.name || '').toUpperCase()));
   items.forEach(item => {
+    const encodedName = encodeURIComponent(item.name);
+    const favored = favoriteNames.has((item.name || '').toUpperCase());
     const tr = document.createElement('tr');
     const nameLower = item.name.toLowerCase();
     const grpLower  = (item.group || '').toLowerCase();
     const descLower = (item.description || '').toLowerCase();
     tr.innerHTML = `
       <td class="fw-semibold font-monospace">
-        <a href="/bapi/${encodeURIComponent(item.name)}" class="text-decoration-none link-primary">
+        <a href="/bapi/${encodedName}" class="text-decoration-none link-primary">
           ${highlight(escHtml(item.name), currentTerm)}
         </a>
       </td>
       <td class="text-muted small">${escHtml(item.group || '')}</td>
       <td>${highlight(escHtml(item.description || ''), currentTerm)}</td>
       <td class="text-center">
-        <a href="/bapi/${encodeURIComponent(item.name)}"
+        <button type="button"
+                class="btn btn-sm ${favored ? 'btn-warning' : 'btn-outline-warning'}"
+                data-fav-toggle="1"
+                data-fav-name="${encodedName}"
+                data-fav-group="${encodeURIComponent(item.group || '')}"
+                data-fav-description="${encodeURIComponent(item.description || '')}"
+                title="${favored ? 'Unpin favorite' : 'Pin favorite'}"
+                aria-label="${favored ? 'Unpin favorite' : 'Pin favorite'}">
+          <i class="bi ${favored ? 'bi-star-fill' : 'bi-star'}"></i>
+        </button>
+      </td>
+      <td class="text-center">
+        <a href="/bapi/${encodedName}"
            class="btn btn-sm btn-outline-primary" title="Open BAPI">
           <i class="bi bi-box-arrow-up-right"></i>
         </a>
@@ -341,6 +476,18 @@ function renderResults(items) {
   lastFiltered = [...allRows];
   renderPage(lastFiltered);
 }
+
+tbody.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-fav-toggle]');
+  if (!btn) return;
+  const name = decodeURIComponent(btn.dataset.favName || '');
+  if (!name) return;
+  toggleFavorite({
+    name,
+    group: decodeURIComponent(btn.dataset.favGroup || ''),
+    description: decodeURIComponent(btn.dataset.favDescription || '')
+  });
+});
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function highlight(html, term) {
@@ -356,5 +503,7 @@ function showError(msg) {
 function escHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+
+renderFavorites();
 </script>
 {% endblock %}
