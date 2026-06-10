@@ -224,7 +224,7 @@ function setFavoriteButtonState(btn, favored) {
 function syncFavoriteButtons(name) {
   const encodedName = encodeURIComponent(name);
   const favored = isFavorite(name);
-  document.querySelectorAll(`[data-fav-name="${encodedName}"]`).forEach(btn => {
+  document.querySelectorAll(`[data-fav-toggle][data-fav-name="${encodedName}"]`).forEach(btn => {
     setFavoriteButtonState(btn, favored);
   });
 }
