@@ -49,7 +49,7 @@
     </div>
 
     <!-- Favorites -->
-    <div class="card shadow-sm mb-4">
+    <div id="favorites-card" class="card shadow-sm mb-4 d-none">
       <div class="card-body p-3">
         <div class="d-flex align-items-center justify-content-between mb-2">
           <h2 class="h6 mb-0 fw-bold">
@@ -138,6 +138,7 @@ const groupSel   = document.getElementById('group-filter');
 const noResults  = document.getElementById('no-results');
 const table      = document.getElementById('results-table');
 const recentDrop = document.getElementById('recent-dropdown');
+const favoritesCard  = document.getElementById('favorites-card');
 const favoritesCount = document.getElementById('favorites-count');
 const favoritesEmpty = document.getElementById('favorites-empty');
 const favoritesList  = document.getElementById('favorites-list');
@@ -248,6 +249,7 @@ function toggleFavorite(item) {
 
 function renderFavorites() {
   const items = loadFavorites();
+  favoritesCard.classList.toggle('d-none', items.length === 0);
   favoritesCount.textContent = String(items.length);
   favoritesEmpty.classList.toggle('d-none', items.length > 0);
   favoritesList.classList.toggle('d-none', items.length === 0);
@@ -433,9 +435,10 @@ function renderResults(items) {
     groupSel.classList.remove('d-none');
   }
 
+  const favoriteNames = new Set(loadFavorites().map(f => (f.name || '').toUpperCase()));
   items.forEach(item => {
     const encodedName = encodeURIComponent(item.name);
-    const favored = isFavorite(item.name);
+    const favored = favoriteNames.has((item.name || '').toUpperCase());
     const tr = document.createElement('tr');
     const nameLower = item.name.toLowerCase();
     const grpLower  = (item.group || '').toLowerCase();
