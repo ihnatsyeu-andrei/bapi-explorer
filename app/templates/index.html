@@ -263,7 +263,7 @@ function renderFavorites() {
     const group = item.group ? ` • ${escHtml(item.group)}` : '';
     return `
       <div class="list-group-item px-0 d-flex align-items-center justify-content-between gap-2">
-        <div class="min-w-0">
+        <div class="flex-grow-1 overflow-hidden">
           <a href="${href}" class="text-decoration-none fw-semibold font-monospace">${escHtml(item.name || '')}</a>
           <div class="text-muted small text-truncate">${description}${group}</div>
         </div>
